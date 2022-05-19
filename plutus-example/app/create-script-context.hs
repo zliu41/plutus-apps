@@ -64,7 +64,7 @@ runScriptContextCmd :: ScriptContextCmd -> IO ()
 runScriptContextCmd (GenerateDummyScriptContextRedeemer outFp) =
   LB.writeFile outFp sampleTestScriptContextDataJSON
 runScriptContextCmd (GenerateScriptContextRedeemerTxBody txbodyfile cModeParams nid outFp) = do
-      eTxBodyRedeemer <- runExceptT $ txToRedeemer txbodyfile cModeParams nid
+      eTxBodyRedeemer <- runExceptT $ createAnyCustomRedeemerBsFromTxFp txbodyfile cModeParams nid
       case eTxBodyRedeemer of
         Left err -> error $ "Error creating redeemer from: " <> txbodyfile <>
                             " Error: " <> show err
