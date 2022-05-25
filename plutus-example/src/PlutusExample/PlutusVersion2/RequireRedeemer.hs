@@ -14,9 +14,9 @@ import Codec.Serialise
 import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.Short qualified as SBS
 
-import Plutus.Script.Utils.V1.Scripts.MonetaryPolicies as Scripts
-import Plutus.Script.Utils.V1.Scripts.Validators as Scripts
-import Plutus.V1.Ledger.Contexts (ScriptContext)
+import Plutus.Script.Utils.V2.Scripts.MonetaryPolicies as Scripts
+import Plutus.Script.Utils.V2.Scripts.Validators as Scripts
+import Plutus.V2.Ledger.Contexts (ScriptContext)
 import Plutus.V1.Ledger.Scripts as Scripts
 import Plutus.V2.Ledger.Api qualified as Plutus
 import PlutusTx qualified
