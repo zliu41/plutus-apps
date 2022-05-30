@@ -31,6 +31,7 @@ module Plutus.ChainIndex.Tx(
     , _ValidTx
     ) where
 
+import Cardano.Api (AddressInEra (..), BabbageEra, CtxUTxO, NetworkId, TxOut (..))
 import Codec.Serialise (Serialise)
 import Control.Lens (makeLenses, makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
@@ -42,11 +43,12 @@ import Data.Set qualified as Set
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
 import Ledger (OnChainTx (..), SlotRange, SomeCardanoApiTx, Tx (..), txId)
+import Ledger.Tx.CardanoAPI (fromCardanoAddress, lookupDatum, toCardanoTxOut)
 import Plutus.Script.Utils.V1.Scripts (datumHash, mintingPolicyHash, redeemerHash, validatorHash)
 import Plutus.V1.Ledger.Api (Address, Datum, DatumHash, MintingPolicy (getMintingPolicy),
                              MintingPolicyHash (MintingPolicyHash), Redeemer, RedeemerHash, Script, TxId,
-                             TxOut (txOutAddress), TxOutRef (TxOutRef), Validator (getValidator),
-                             ValidatorHash (ValidatorHash))
+                             TxOutRef (TxOutRef), Validator (getValidator), ValidatorHash (ValidatorHash))
+import Plutus.V1.Ledger.Api qualified as PV1
 import Plutus.V1.Ledger.Scripts (ScriptHash (ScriptHash))
 import Plutus.V1.Ledger.Tx (TxIn (txInType), TxInType (ConsumeScriptAddress))
 import Prettyprinter
@@ -55,7 +57,7 @@ import Prettyprinter
 -- is invalid.
 data ChainIndexTxOutputs =
     InvalidTx -- ^ The transaction is invalid so there is no outputs
-  | ValidTx [TxOut]
+  | ValidTx [TxOut CtxUTxO BabbageEra]
   deriving (Show, Eq, Generic, ToJSON, FromJSON, Serialise, OpenApi.ToSchema)
 
 makePrisms ''ChainIndexTxOutputs
@@ -113,31 +115,34 @@ txOutRefs ChainIndexTx { _citxTxId, _citxOutputs = ValidTx outputs } =
 txOutRefs ChainIndexTx{_citxOutputs = InvalidTx} = []
 
 -- | Get tx output references and tx outputs from tx.
-txOutsWithRef :: ChainIndexTx -> [(TxOut, TxOutRef)]
+txOutsWithRef :: ChainIndexTx -> [(TxOut CtxUTxO BabbageEra, TxOutRef)]
 txOutsWithRef tx@ChainIndexTx { _citxOutputs = ValidTx outputs } = zip outputs $ txOutRefs tx
 txOutsWithRef ChainIndexTx { _citxOutputs = InvalidTx }          = []
 
 -- | Get 'Map' of tx outputs references to tx.
-txOutRefMap :: ChainIndexTx -> Map TxOutRef (TxOut, ChainIndexTx)
+txOutRefMap :: ChainIndexTx -> Map TxOutRef (TxOut CtxUTxO BabbageEra, ChainIndexTx)
 txOutRefMap tx =
     fmap (, tx) $ Map.fromList $ fmap swap $ txOutsWithRef tx
 
+txOutAddress :: TxOut CtxUTxO BabbageEra -> Address
+txOutAddress (TxOut address _ _ _) = either (error "Cant' parse cardano address") id (fromCardanoAddress address)
+
 -- | Get 'Map' of tx outputs from tx for a specific address.
-txOutRefMapForAddr :: Address -> ChainIndexTx -> Map TxOutRef (TxOut, ChainIndexTx)
+txOutRefMapForAddr :: Address -> ChainIndexTx -> Map TxOutRef (TxOut CtxUTxO BabbageEra, ChainIndexTx)
 txOutRefMapForAddr addr tx =
     Map.filter ((==) addr . txOutAddress . fst) $ txOutRefMap tx
 
 -- | Convert a 'OnChainTx' to a 'ChainIndexTx'. An invalid 'OnChainTx' will not
 -- produce any 'ChainIndexTx' outputs and the collateral inputs of the
 -- 'OnChainTx' will be the inputs of the 'ChainIndexTx'.
-fromOnChainTx :: OnChainTx -> ChainIndexTx
-fromOnChainTx = \case
+fromOnChainTx :: NetworkId -> OnChainTx -> ChainIndexTx
+fromOnChainTx networkId = \case
     Valid tx@Tx{txInputs, txOutputs, txValidRange, txData, txMintScripts} ->
         let (validatorHashes, otherDataHashes, redeemers) = validators txInputs in
         ChainIndexTx
             { _citxTxId = txId tx
             , _citxInputs = txInputs
-            , _citxOutputs = ValidTx txOutputs
+            , _citxOutputs = ValidTx $ either (error "Failed to convert outputs") id $ traverse (toCardanoTxOut networkId (lookupDatum txData)) txOutputs
             , _citxValidRange = txValidRange
             , _citxData = txData <> otherDataHashes
             , _citxRedeemers = redeemers

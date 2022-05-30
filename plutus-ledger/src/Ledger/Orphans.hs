@@ -13,7 +13,7 @@ import Cardano.Crypto.Wallet qualified as Crypto
 import Cardano.Ledger.Crypto qualified as C
 import Cardano.Ledger.Hashes qualified as Hashes
 import Cardano.Ledger.SafeHash qualified as C
-import Codec.Serialise.Class (Serialise)
+import Codec.Serialise.Class (Serialise (decode, encode))
 import Control.Lens ((&), (.~), (?~))
 import Control.Monad.Freer.Extras.Log (LogLevel, LogMessage)
 import Crypto.Hash qualified as Crypto
@@ -206,3 +206,16 @@ deriving newtype instance Hashable POSIXTime
 
 deriving anyclass instance JSON.ToJSON ScriptError
 deriving anyclass instance JSON.FromJSON ScriptError
+
+instance OpenApi.ToSchema (C.AddressInEra C.BabbageEra) where
+    declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "AddressInBabbageEra") mempty
+
+instance OpenApi.ToSchema (C.TxOutDatum C.CtxUTxO C.BabbageEra) where
+    declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "TxOutDatumInBabbageEra") mempty
+
+instance OpenApi.ToSchema (C.TxOut C.CtxUTxO C.BabbageEra) where
+    declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "TxOutInBabbageEra") mempty
+
+instance Serialise (C.TxOut C.CtxUTxO C.BabbageEra) where
+    encode = undefined
+    decode = undefined
