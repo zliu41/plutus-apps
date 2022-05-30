@@ -14,6 +14,8 @@ module Plutus.ChainIndex.Tx(
     ChainIndexTx(..)
     , ChainIndexTxOutputs(..)
     , fromOnChainTx
+    , txOutAddress
+    , txOutValue
     , txOutRefs
     , txOutsWithRef
     , txOutRefMap
@@ -31,7 +33,7 @@ module Plutus.ChainIndex.Tx(
     , _ValidTx
     ) where
 
-import Cardano.Api (AddressInEra (..), BabbageEra, CtxUTxO, NetworkId, TxOut (..))
+import Cardano.Api (BabbageEra, CtxUTxO, NetworkId, TxOut (..), txOutValueToValue)
 import Codec.Serialise (Serialise)
 import Control.Lens (makeLenses, makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
@@ -43,12 +45,11 @@ import Data.Set qualified as Set
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
 import Ledger (OnChainTx (..), SlotRange, SomeCardanoApiTx, Tx (..), txId)
-import Ledger.Tx.CardanoAPI (fromCardanoAddress, lookupDatum, toCardanoTxOut)
+import Ledger.Tx.CardanoAPI (fromCardanoAddress, fromCardanoValue, toCardanoTxOutBabbage)
 import Plutus.Script.Utils.V1.Scripts (datumHash, mintingPolicyHash, redeemerHash, validatorHash)
 import Plutus.V1.Ledger.Api (Address, Datum, DatumHash, MintingPolicy (getMintingPolicy),
                              MintingPolicyHash (MintingPolicyHash), Redeemer, RedeemerHash, Script, TxId,
-                             TxOutRef (TxOutRef), Validator (getValidator), ValidatorHash (ValidatorHash))
-import Plutus.V1.Ledger.Api qualified as PV1
+                             TxOutRef (TxOutRef), Validator (getValidator), ValidatorHash (ValidatorHash), Value)
 import Plutus.V1.Ledger.Scripts (ScriptHash (ScriptHash))
 import Plutus.V1.Ledger.Tx (TxIn (txInType), TxInType (ConsumeScriptAddress))
 import Prettyprinter
@@ -90,7 +91,7 @@ instance Pretty ChainIndexTx where
     pretty ChainIndexTx{_citxTxId, _citxInputs, _citxOutputs = ValidTx outputs, _citxValidRange, _citxData, _citxRedeemers, _citxScripts} =
         let lines' =
                 [ hang 2 (vsep ("inputs:" : fmap pretty (Set.toList _citxInputs)))
-                , hang 2 (vsep ("outputs:" : fmap pretty outputs))
+                , hang 2 (vsep ("outputs:" : fmap undefined outputs))
                 , hang 2 (vsep ("scripts hashes:": fmap (pretty . fst) (Map.toList _citxScripts)))
                 , "validity range:" <+> viaShow _citxValidRange
                 , hang 2 (vsep ("data:": fmap (pretty . snd) (Map.toList _citxData) ))
@@ -127,6 +128,9 @@ txOutRefMap tx =
 txOutAddress :: TxOut CtxUTxO BabbageEra -> Address
 txOutAddress (TxOut address _ _ _) = either (error "Cant' parse cardano address") id (fromCardanoAddress address)
 
+txOutValue :: TxOut CtxUTxO BabbageEra -> Value
+txOutValue (TxOut _ txOutVal _ _) = fromCardanoValue $ txOutValueToValue txOutVal
+
 -- | Get 'Map' of tx outputs from tx for a specific address.
 txOutRefMapForAddr :: Address -> ChainIndexTx -> Map TxOutRef (TxOut CtxUTxO BabbageEra, ChainIndexTx)
 txOutRefMapForAddr addr tx =
@@ -142,7 +146,7 @@ fromOnChainTx networkId = \case
         ChainIndexTx
             { _citxTxId = txId tx
             , _citxInputs = txInputs
-            , _citxOutputs = ValidTx $ either (error "Failed to convert outputs") id $ traverse (toCardanoTxOut networkId (lookupDatum txData)) txOutputs
+            , _citxOutputs = ValidTx $ either (error "Failed to convert outputs") id $ traverse (toCardanoTxOutBabbage networkId undefined) txOutputs
             , _citxValidRange = txValidRange
             , _citxData = txData <> otherDataHashes
             , _citxRedeemers = redeemers

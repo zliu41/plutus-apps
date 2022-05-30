@@ -31,8 +31,8 @@ import Data.Maybe (catMaybes, fromMaybe)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
-import Ledger (Address (addressCredential), ChainIndexTxOut (..), TxId, TxOut (txOutAddress), TxOutRef (..),
-               txOutDatumHash, txOutValue)
+import Ledger (Address (addressCredential), ChainIndexTxOut (..), TxId, TxOut, TxOutRef (..), txOutDatumHash,
+               txOutValue)
 import Ledger.Scripts (ScriptHash (ScriptHash))
 import Plutus.ChainIndex.Api (IsUtxoResponse (IsUtxoResponse), TxosResponse (TxosResponse),
                               UtxosResponse (UtxosResponse))
@@ -42,7 +42,7 @@ import Plutus.ChainIndex.Effects (ChainIndexControlEffect (..), ChainIndexQueryE
 import Plutus.ChainIndex.Emulator.DiskState (DiskState, addressMap, assetClassMap, dataMap, redeemerMap, scriptMap,
                                              txMap)
 import Plutus.ChainIndex.Emulator.DiskState qualified as DiskState
-import Plutus.ChainIndex.Tx (ChainIndexTx, _ValidTx, citxOutputs)
+import Plutus.ChainIndex.Tx (ChainIndexTx, _ValidTx, citxOutputs, txOutAddress)
 import Plutus.ChainIndex.TxUtxoBalance qualified as TxUtxoBalance
 import Plutus.ChainIndex.Types (ChainSyncBlock (..), Diagnostics (..), Point (PointAtGenesis), Tip (..),
                                 TxProcessOption (..), TxUtxoBalance (..))

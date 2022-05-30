@@ -4,6 +4,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE ViewPatterns    #-}
 {-| The disk state is the part of the chain index that is kept on disk. This
 module defines an in-memory implementation of the disk state which can be
 used in the emulator.
@@ -24,6 +25,7 @@ module Plutus.ChainIndex.Emulator.DiskState(
     , diagnostics
 ) where
 
+import Cardano.Api (BabbageEra, CtxUTxO, TxOut (..))
 import Control.Lens (At (..), Index, IxValue, Ixed (..), lens, makeLenses, view, (&), (.~), (^.))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Map (Map)
@@ -35,10 +37,11 @@ import GHC.Generics (Generic)
 import Ledger.Ada qualified as Ada
 import Ledger.Credential (Credential)
 import Ledger.Tx (TxId)
-import Plutus.ChainIndex.Tx (ChainIndexTx, citxData, citxRedeemers, citxScripts, citxTxId, txOutsWithRef)
+import Plutus.ChainIndex.Tx (ChainIndexTx, citxData, citxRedeemers, citxScripts, citxTxId, txOutAddress, txOutValue,
+                             txOutsWithRef)
 import Plutus.ChainIndex.Types (Diagnostics (Diagnostics, numAddresses, numAssetClasses, numScripts, numTransactions, numUnmatchedInputs, numUnspentOutputs, someTransactions))
 import Plutus.V1.Ledger.Api (Address (Address, addressCredential), Datum, DatumHash, Redeemer, RedeemerHash, Script,
-                             TxOut (TxOut, txOutAddress, txOutValue), TxOutRef)
+                             TxOutRef)
 import Plutus.V1.Ledger.Scripts (ScriptHash)
 import Plutus.V1.Ledger.Value (AssetClass (AssetClass), flattenValue)
 
@@ -69,7 +72,7 @@ instance Monoid CredentialMap where
 -- | Convert the outputs of the transaction into a 'CredentialMap'.
 txCredentialMap :: ChainIndexTx -> CredentialMap
 txCredentialMap  =
-    let credential TxOut{txOutAddress=Address{addressCredential}} = addressCredential
+    let credential (txOutAddress -> Address{addressCredential}) = addressCredential
     in CredentialMap
        . Map.fromListWith (<>)
        . fmap (bimap credential Set.singleton)
@@ -110,11 +113,11 @@ txAssetClassMap =
           fmap (, Set.singleton txOutRef) $ assetClassesOfTxOut txOut)
       . txOutsWithRef
   where
-    assetClassesOfTxOut :: TxOut -> [AssetClass]
-    assetClassesOfTxOut TxOut { txOutValue } =
+    assetClassesOfTxOut :: TxOut CtxUTxO BabbageEra -> [AssetClass]
+    assetClassesOfTxOut (txOutValue -> val) =
       fmap (\(c, t, _) -> AssetClass (c, t))
            $ filter (\(c, t, _) -> not $ c == Ada.adaSymbol && t == Ada.adaToken)
-           $ flattenValue txOutValue
+           $ flattenValue val
 
 -- | Data that we keep on disk. (This type is used for testing only - we need
 --   other structures for the disk-backed storage)

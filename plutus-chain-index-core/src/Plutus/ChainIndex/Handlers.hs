@@ -59,7 +59,7 @@ import Plutus.ChainIndex.Types (ChainSyncBlock (..), Depth (..), Diagnostics (..
                                 TxProcessOption (..), TxUtxoBalance (..), tipAsPoint)
 import Plutus.ChainIndex.UtxoState (InsertUtxoSuccess (..), RollbackResult (..), UtxoIndex)
 import Plutus.ChainIndex.UtxoState qualified as UtxoState
-import Plutus.V1.Ledger.Api (Address (..), Credential (..), Datum, DatumHash (..), TxOut (..), TxOutRef (..))
+import Plutus.V1.Ledger.Api (Address (..), Credential (..), Datum, DatumHash (..), TxOut, TxOutRef (..))
 
 type ChainIndexState = UtxoIndex TxUtxoBalance
 

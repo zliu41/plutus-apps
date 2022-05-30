@@ -41,7 +41,7 @@ fromCardanoTx
   -> C.Tx era
   -> Either FromCardanoError ChainIndexTx
 fromCardanoTx eraInMode tx@(C.Tx txBody@(C.TxBody C.TxBodyContent{..}) _) = do
-    txOutputs <- traverse fromCardanoTxOut txOuts
+    -- txOutputs <- traverse fromCardanoTxOutBabbage txOuts
     let scriptMap = plutusScriptsFromTxBody txBody
         isTxScriptValid = fromTxScriptValidity txScriptValidity
         (datums, redeemers) = scriptDataFromCardanoTxBody txBody
@@ -58,7 +58,7 @@ fromCardanoTx eraInMode tx@(C.Tx txBody@(C.TxBody C.TxBodyContent{..}) _) = do
             -- If the transaction is invalid, we use collateral inputs
             , _citxInputs = Set.fromList $ fmap ((`P.TxIn` Nothing) . fromCardanoTxIn) inputs
             -- No outputs if the one of scripts failed
-            , _citxOutputs = if isTxScriptValid then ChainIndex.Tx.ValidTx txOutputs
+            , _citxOutputs = if isTxScriptValid then ChainIndex.Tx.ValidTx []
                                                 else ChainIndex.Tx.InvalidTx
             , _citxData = datums
             , _citxRedeemers = redeemers

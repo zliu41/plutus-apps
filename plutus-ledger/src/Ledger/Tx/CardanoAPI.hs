@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedLists    #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeApplications   #-}
 {-# LANGUAGE ViewPatterns       #-}
 
 {-# OPTIONS_GHC -Wno-orphans        #-}
@@ -43,6 +44,7 @@ module Ledger.Tx.CardanoAPI(
   , toCardanoTxInsCollateral
   , toCardanoTxInWitness
   , toCardanoTxOut
+  , toCardanoTxOutBabbage
   , toCardanoTxOutDatumHash
   , toCardanoAddress
   , toCardanoMintValue
@@ -486,6 +488,20 @@ fromCardanoTxOut (C.TxOut addr value datumHash _) =
     <*> pure (fromCardanoTxOutValue value)
     <*> pure (fromCardanoTxOutDatumHash datumHash)
 
+-- fromCardanoTxOutBabbage :: C.TxOut C.CtxTx era -> C.TxOut C.CtxTx C.BabbageEra
+-- fromCardanoTxOutBabbage (C.TxOut addr value datumHash ref) = (C.TxOut addr value datumHash ref)
+
+toCardanoTxOutBabbage
+    :: C.NetworkId
+    -> (Maybe P.DatumHash -> Either ToCardanoError (C.TxOutDatum ctx C.BabbageEra))
+    -> PV1.TxOut
+    -> Either ToCardanoError (C.TxOut ctx C.BabbageEra)
+toCardanoTxOutBabbage networkId fromHash (PV1.TxOut addr value datumHash) =
+    C.TxOut <$> toCardanoAddressBabbage networkId addr
+            <*> toCardanoTxOutValueBabbage value
+            <*> fromHash datumHash
+            <*> pure C.ReferenceScriptNone
+
 toCardanoTxOut
     :: C.NetworkId
     -> (Maybe P.DatumHash -> Either ToCardanoError (C.TxOutDatum ctx C.AlonzoEra))
@@ -521,6 +537,13 @@ fromCardanoAddress (C.AddressInEra _ (C.ShelleyAddress _ paymentCredential stake
 toCardanoAddress :: C.NetworkId -> P.Address -> Either ToCardanoError (C.AddressInEra C.AlonzoEra)
 toCardanoAddress networkId (P.Address addressCredential addressStakingCredential) =
     C.AddressInEra (C.ShelleyAddressInEra C.ShelleyBasedEraAlonzo) <$>
+        (C.makeShelleyAddress networkId
+            <$> toCardanoPaymentCredential addressCredential
+            <*> toCardanoStakeAddressReference addressStakingCredential)
+
+toCardanoAddressBabbage :: C.NetworkId -> P.Address -> Either ToCardanoError (C.AddressInEra C.BabbageEra)
+toCardanoAddressBabbage networkId (P.Address addressCredential addressStakingCredential) =
+    C.AddressInEra (C.ShelleyAddressInEra C.ShelleyBasedEraBabbage) <$>
         (C.makeShelleyAddress networkId
             <$> toCardanoPaymentCredential addressCredential
             <*> toCardanoStakeAddressReference addressStakingCredential)
@@ -582,6 +605,9 @@ toCardanoTxOutValue :: PV1.Value -> Either ToCardanoError (C.TxOutValue C.Alonzo
 toCardanoTxOutValue value = do
     when (Ada.fromValue value == mempty) (Left OutputHasZeroAda)
     C.TxOutValue C.MultiAssetInAlonzoEra <$> toCardanoValue value
+
+toCardanoTxOutValueBabbage :: PV1.Value -> Either ToCardanoError (C.TxOutValue C.BabbageEra)
+toCardanoTxOutValueBabbage value = C.TxOutValue C.MultiAssetInBabbageEra <$> toCardanoValue value
 
 fromCardanoTxOutDatumHash :: C.TxOutDatum C.CtxTx era -> Maybe P.DatumHash
 fromCardanoTxOutDatumHash C.TxOutDatumNone       = Nothing
