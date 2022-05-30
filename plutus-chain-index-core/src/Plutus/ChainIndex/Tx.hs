@@ -20,6 +20,7 @@ module Plutus.ChainIndex.Tx(
     , txOutsWithRef
     , txOutRefMap
     , txOutRefMapForAddr
+    , TxOut
     -- ** Lenses
     , citxTxId
     , citxInputs
@@ -33,7 +34,8 @@ module Plutus.ChainIndex.Tx(
     , _ValidTx
     ) where
 
-import Cardano.Api (BabbageEra, CtxUTxO, NetworkId, TxOut (..), txOutValueToValue)
+import Cardano.Api (BabbageEra, CtxUTxO, NetworkId, txOutValueToValue)
+import Cardano.Api qualified as C
 import Codec.Serialise (Serialise)
 import Control.Lens (makeLenses, makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
@@ -54,11 +56,13 @@ import Plutus.V1.Ledger.Scripts (ScriptHash (ScriptHash))
 import Plutus.V1.Ledger.Tx (TxIn (txInType), TxInType (ConsumeScriptAddress))
 import Prettyprinter
 
+type TxOut = C.TxOut CtxUTxO BabbageEra
+
 -- | List of outputs of a transaction. There are no outputs if the transaction
 -- is invalid.
 data ChainIndexTxOutputs =
     InvalidTx -- ^ The transaction is invalid so there is no outputs
-  | ValidTx [TxOut CtxUTxO BabbageEra]
+  | ValidTx [TxOut]
   deriving (Show, Eq, Generic, ToJSON, FromJSON, Serialise, OpenApi.ToSchema)
 
 makePrisms ''ChainIndexTxOutputs
@@ -116,23 +120,23 @@ txOutRefs ChainIndexTx { _citxTxId, _citxOutputs = ValidTx outputs } =
 txOutRefs ChainIndexTx{_citxOutputs = InvalidTx} = []
 
 -- | Get tx output references and tx outputs from tx.
-txOutsWithRef :: ChainIndexTx -> [(TxOut CtxUTxO BabbageEra, TxOutRef)]
+txOutsWithRef :: ChainIndexTx -> [(TxOut, TxOutRef)]
 txOutsWithRef tx@ChainIndexTx { _citxOutputs = ValidTx outputs } = zip outputs $ txOutRefs tx
 txOutsWithRef ChainIndexTx { _citxOutputs = InvalidTx }          = []
 
 -- | Get 'Map' of tx outputs references to tx.
-txOutRefMap :: ChainIndexTx -> Map TxOutRef (TxOut CtxUTxO BabbageEra, ChainIndexTx)
+txOutRefMap :: ChainIndexTx -> Map TxOutRef (TxOut, ChainIndexTx)
 txOutRefMap tx =
     fmap (, tx) $ Map.fromList $ fmap swap $ txOutsWithRef tx
 
-txOutAddress :: TxOut CtxUTxO BabbageEra -> Address
-txOutAddress (TxOut address _ _ _) = either (error "Cant' parse cardano address") id (fromCardanoAddress address)
+txOutAddress :: TxOut -> Address
+txOutAddress (C.TxOut address _ _ _) = either (error "Cant' parse cardano address") id (fromCardanoAddress address)
 
-txOutValue :: TxOut CtxUTxO BabbageEra -> Value
-txOutValue (TxOut _ txOutVal _ _) = fromCardanoValue $ txOutValueToValue txOutVal
+txOutValue :: TxOut -> Value
+txOutValue (C.TxOut _ txOutVal _ _) = fromCardanoValue $ txOutValueToValue txOutVal
 
 -- | Get 'Map' of tx outputs from tx for a specific address.
-txOutRefMapForAddr :: Address -> ChainIndexTx -> Map TxOutRef (TxOut CtxUTxO BabbageEra, ChainIndexTx)
+txOutRefMapForAddr :: Address -> ChainIndexTx -> Map TxOutRef (TxOut, ChainIndexTx)
 txOutRefMapForAddr addr tx =
     Map.filter ((==) addr . txOutAddress . fst) $ txOutRefMap tx
 

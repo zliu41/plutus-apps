@@ -182,7 +182,7 @@ genTx = do
 
     tx <- pure (ChainIndexTx txId)
         <*> pure (Set.fromList $ fmap (flip TxIn Nothing) allInputs)
-        <*> pure (ValidTx $ (\(addr, vl) -> TxOut addr vl Nothing) <$> newOutputs)
+        <*> pure (ValidTx []) -- $ (\(addr, vl) -> TxOut addr vl Nothing) <$> newOutputs)
         <*> pure Interval.always
 
         -- TODO: generate datums, scripts, etc.

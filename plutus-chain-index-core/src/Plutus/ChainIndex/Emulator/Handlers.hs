@@ -20,6 +20,7 @@ module Plutus.ChainIndex.Emulator.Handlers(
     , utxoIndex
     ) where
 
+import Cardano.Api qualified as C
 import Control.Lens (at, ix, makeLenses, over, preview, set, to, view, (&))
 import Control.Monad (foldM)
 import Control.Monad.Freer (Eff, Member, type (~>))
@@ -31,9 +32,9 @@ import Data.Maybe (catMaybes, fromMaybe)
 import Data.Semigroup.Generic (GenericSemigroupMonoid (..))
 import Data.Set qualified as Set
 import GHC.Generics (Generic)
-import Ledger (Address (addressCredential), ChainIndexTxOut (..), TxId, TxOut, TxOutRef (..), txOutDatumHash,
-               txOutValue)
+import Ledger (Address (addressCredential), ChainIndexTxOut (..), TxId, TxOutRef (..))
 import Ledger.Scripts (ScriptHash (ScriptHash))
+import Ledger.Tx.CardanoAPI (fromCardanoScriptData)
 import Plutus.ChainIndex.Api (IsUtxoResponse (IsUtxoResponse), TxosResponse (TxosResponse),
                               UtxosResponse (UtxosResponse))
 import Plutus.ChainIndex.ChainIndexError (ChainIndexError (..))
@@ -42,16 +43,17 @@ import Plutus.ChainIndex.Effects (ChainIndexControlEffect (..), ChainIndexQueryE
 import Plutus.ChainIndex.Emulator.DiskState (DiskState, addressMap, assetClassMap, dataMap, redeemerMap, scriptMap,
                                              txMap)
 import Plutus.ChainIndex.Emulator.DiskState qualified as DiskState
-import Plutus.ChainIndex.Tx (ChainIndexTx, _ValidTx, citxOutputs, txOutAddress)
+import Plutus.ChainIndex.Tx (ChainIndexTx, _ValidTx, citxOutputs, txOutAddress, txOutValue)
 import Plutus.ChainIndex.TxUtxoBalance qualified as TxUtxoBalance
 import Plutus.ChainIndex.Types (ChainSyncBlock (..), Diagnostics (..), Point (PointAtGenesis), Tip (..),
                                 TxProcessOption (..), TxUtxoBalance (..))
 import Plutus.ChainIndex.UtxoState (InsertUtxoSuccess (..), RollbackResult (..), UtxoIndex, tip, utxoState)
 import Plutus.ChainIndex.UtxoState qualified as UtxoState
-import Plutus.V1.Ledger.Api (Credential (PubKeyCredential, ScriptCredential), MintingPolicy (MintingPolicy),
-                             MintingPolicyHash (MintingPolicyHash), StakeValidator (StakeValidator),
-                             StakeValidatorHash (StakeValidatorHash), Validator (Validator),
-                             ValidatorHash (ValidatorHash))
+import Plutus.V1.Ledger.Api (Credential (PubKeyCredential, ScriptCredential), Datum (..), DatumHash (..),
+                             MintingPolicy (MintingPolicy), MintingPolicyHash (MintingPolicyHash),
+                             StakeValidator (StakeValidator), StakeValidatorHash (StakeValidatorHash),
+                             Validator (Validator), ValidatorHash (ValidatorHash))
+import PlutusTx.Prelude qualified as PlutusTx
 
 data ChainIndexEmulatorState =
     ChainIndexEmulatorState
@@ -89,22 +91,27 @@ getTxOutFromRef ref@TxOutRef{txOutRefId, txOutRefIdx} = do
   -- Find the output in the tx matching the output ref
   case preview (txMap . ix txOutRefId . citxOutputs . _ValidTx . ix (fromIntegral txOutRefIdx)) ds of
     Nothing -> logWarn (TxOutNotFound ref) >> pure Nothing
-    Just txout -> do
+    Just txout@(C.TxOut _ _ datum _) -> do
       -- The output might come from a public key address or a script address.
       -- We need to handle them differently.
       case addressCredential $ txOutAddress txout of
         PubKeyCredential _ ->
           pure $ Just $ PublicKeyChainIndexTxOut (txOutAddress txout) (txOutValue txout)
         ScriptCredential vh@(ValidatorHash h) -> do
-          case txOutDatumHash txout of
-            Nothing -> do
-              -- If the txout comes from a script address, the Datum should not be Nothing
-              logWarn $ NoDatumScriptAddr txout
-              pure Nothing
-            Just dh -> do
+          case datum of
+            C.TxOutDatumHash _ hsd -> do
+              let dh = DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes hsd)
               let v = maybe (Left vh) (Right . Validator) $ preview (scriptMap . ix (ScriptHash h)) ds
               let d = maybe (Left dh) Right $ preview (dataMap . ix dh) ds
               pure $ Just $ ScriptChainIndexTxOut (txOutAddress txout) v d (txOutValue txout)
+            C.TxOutDatumInline _ sd -> do
+              let v = maybe (Left vh) (Right . Validator) $ preview (scriptMap . ix (ScriptHash h)) ds
+              let d = Right $ Datum $ fromCardanoScriptData sd
+              pure $ Just $ ScriptChainIndexTxOut (txOutAddress txout) v d (txOutValue txout)
+            _ -> do
+              -- If the txout comes from a script address, the Datum should not be Nothing
+              logWarn $ NoDatumScriptAddr txout
+              pure Nothing
 
 handleQuery ::
     forall effs.

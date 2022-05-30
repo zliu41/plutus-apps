@@ -37,10 +37,10 @@ import Database.Beam.Migrate (CheckedDatabaseSettings, defaultMigratableDbSettin
                               unCheckDatabase)
 import Database.Beam.Sqlite (Sqlite)
 import Ledger (BlockId (..), ChainIndexTxOut (..), Slot)
-import Plutus.ChainIndex.Tx (ChainIndexTx)
+import Plutus.ChainIndex.Tx (ChainIndexTx, TxOut)
 import Plutus.ChainIndex.Types (BlockNumber (..), Tip (..))
 import Plutus.V1.Ledger.Api (Credential, Datum, DatumHash (..), MintingPolicy, MintingPolicyHash (..), Redeemer,
-                             RedeemerHash (..), Script, StakeValidator, StakeValidatorHash (..), TxId (..), TxOut,
+                             RedeemerHash (..), Script, StakeValidator, StakeValidatorHash (..), TxId (..),
                              TxOutRef (..), Validator, ValidatorHash (..))
 import Plutus.V1.Ledger.Scripts (ScriptHash (..))
 import Plutus.V1.Ledger.Value (AssetClass)
