@@ -58,16 +58,16 @@ library
 
   hs-source-dirs:       src
 
-  exposed-modules:      PlutusExample.PlutusVersion1.AlwaysFails
-                        PlutusExample.PlutusVersion1.AlwaysSucceeds
-                        PlutusExample.PlutusVersion1.CustomDatumRedeemerGuess
-                        PlutusExample.PlutusVersion1.DatumRedeemerGuess
-                        PlutusExample.PlutusVersion1.Loop
-                        PlutusExample.PlutusVersion1.MintingScript
-                        PlutusExample.PlutusVersion1.RedeemerContextScripts
-                        PlutusExample.PlutusVersion1.Sum
+  exposed-modules:      PlutusExample.Alonzo.AlwaysFails
+                        PlutusExample.Alonzo.AlwaysSucceeds
+                        PlutusExample.Alonzo.CustomDatumRedeemerGuess
+                        PlutusExample.Alonzo.DatumRedeemerGuess
+                        PlutusExample.Alonzo.Loop
+                        PlutusExample.Alonzo.MintingScript
+                        PlutusExample.Alonzo.RedeemerContextScripts
+                        PlutusExample.Alonzo.Sum
 
-                        PlutusExample.PlutusVersion2.RequireRedeemer
+                        PlutusExample.Babbage.RequireRedeemer
 
                         PlutusExample.ScriptContextChecker
 

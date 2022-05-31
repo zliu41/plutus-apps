@@ -87,7 +87,7 @@ hprop_plutus_script_context_equality = H.integration . H.runFinallies . H.worksp
   scriptDummyRedeemer <- H.note $ work </> "script-context-dummy.redeemer"
   scriptContextRedeemer <- H.note $ work </> "script-context.redeemer"
 
-  plutusContextEqualityScript <- H.note $ base </> "plutus-example/plutus/scripts/context-equivalance-test.plutus"
+  plutusContextEqualityScript <- H.note $ base </> "plutus-example/plutus/scripts/alonzo/context-equivalance-test-V1.plutus"
 
   exampleStakeVKey <- H.note $ tempAbsPath </> "addresses/user1-stake.vkey"
   exampleCertificate <- H.note $ tempAbsPath </> "addresses/user1-stake.reg.cert"

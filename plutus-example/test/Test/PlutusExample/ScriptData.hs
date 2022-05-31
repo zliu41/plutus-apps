@@ -11,7 +11,7 @@ import Data.Aeson qualified as Aeson
 import Hedgehog (Property, forAll, property, tripping, (===))
 import Hedgehog.Internal.Property (failWith)
 
-import PlutusExample.PlutusVersion1.RedeemerContextScripts
+import PlutusExample.Alonzo.RedeemerContextScripts
 import PlutusExample.ScriptContextChecker
 
 import Test.PlutusExample.Gen

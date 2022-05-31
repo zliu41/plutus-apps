@@ -49,13 +49,13 @@ import Ledger qualified as Plutus
 import Ouroboros.Consensus.HardFork.Combinator.AcrossEras qualified as Consensus
 import Ouroboros.Consensus.HardFork.History qualified as Consensus
 import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
-import Plutus.Script.Utils.V1.Scripts qualified as Scripts
+import Plutus.Script.Utils.V1.Scripts qualified as PSU.V1
 import Plutus.V1.Ledger.Api qualified as Plutus
 import PlutusTx qualified
 import PlutusTx.IsData.Class
 import PlutusTx.Prelude hiding (Eq, Semigroup (..), unless, (.))
 
-import PlutusExample.PlutusVersion1.RedeemerContextScripts
+import PlutusExample.Alonzo.RedeemerContextScripts
 
 
 data AnyCustomRedeemer
