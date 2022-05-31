@@ -86,7 +86,7 @@ prop_submit_api_spending_plutus_script = Test.integration . HE.runFinallies . HE
   utxoVKeyFile <- HE.note $ tempAbsPath </> "shelley/utxo-keys/utxo1.vkey"
   utxoSKeyFile <- HE.note $ tempAbsPath </> "shelley/utxo-keys/utxo1.skey"
 
-  plutusScriptFileInUse <- HE.note $ base </> "plutus-example/plutus/scripts/alonzo/always-succeeds-spending-V1.plutus"
+  plutusScriptFileInUse <- HE.note $ base </> "plutus-example/plutus/scripts/always-succeeds-spending.plutus"
 
   submitApiConfigFile <- HE.note configurationFile
   submitApiStdoutFile <- HE.note $ tempAbsPath </> "logs/submit-api.stdout"

@@ -18,7 +18,7 @@ import Cardano.Ledger.TxIn qualified as Ledger
 import Gen.Cardano.Api.Typed
 import Ledger qualified as Plutus
 import Plutus.V1.Ledger.DCert qualified as Plutus
-import PlutusExample.Alonzo.RedeemerContextScripts
+import PlutusExample.PlutusVersion1.RedeemerContextScripts
 import PlutusExample.ScriptContextChecker
 
 import Hedgehog (Gen)

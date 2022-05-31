@@ -11,11 +11,11 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
-module PlutusExample.Alonzo.RedeemerContextScripts
+module PlutusExample.PlutusVersion1.RedeemerContextScripts
   ( PV1CustomRedeemer(..)
   , pv1CustomRedeemerFromScriptData
-  , scriptContextTestMintingScriptV1
-  , scriptContextTextPayingScriptV1
+  , scriptContextTestMintingScript
+  , scriptContextTextPayingScript
   , testScriptContextToScriptData
   ) where
 
@@ -60,6 +60,7 @@ import Ouroboros.Network.Protocol.LocalStateQuery.Type (AcquireFailure)
 import Plutus.Script.Utils.V1.Scripts.MonetaryPolicies as Scripts
 import Plutus.Script.Utils.V1.Scripts.Validators as Scripts
 import Plutus.V1.Ledger.Api qualified as Plutus
+import Plutus.V1.Ledger.Scripts as Scripts
 import PlutusTx qualified
 import PlutusTx.AssocMap qualified as AMap
 import PlutusTx.IsData.Class
@@ -169,8 +170,8 @@ plutusV1RedeemerContextTestScript = Plutus.unValidatorScript validator
 pv1RedeemerContextTestScriptBs :: SBS.ShortByteString
 pv1RedeemerContextTestScriptBs = SBS.toShort . LB.toStrict $ serialise plutusV1RedeemerContextTestScript
 
-scriptContextTextPayingScriptV1 :: PlutusScript PlutusScriptV1
-scriptContextTextPayingScriptV1 = PlutusScriptSerialised pv1RedeemerContextTestScriptBs
+scriptContextTextPayingScript :: PlutusScript PlutusScriptV1
+scriptContextTextPayingScript = PlutusScriptSerialised pv1RedeemerContextTestScriptBs
 
 
 -- Minting script that checks the minting value, validty interval and
@@ -203,7 +204,7 @@ mkPolicy (PV1CustomRedeemer _ _ minted txValidRange _fee _ _ signatories mPurpos
    txInfo :: Plutus.TxInfo
    txInfo = Plutus.scriptContextTxInfo scriptContext
 
-mintingScriptContextTextPolicy :: Plutus.MintingPolicy
+mintingScriptContextTextPolicy :: Scripts.MintingPolicy
 mintingScriptContextTextPolicy = Plutus.mkMintingPolicyScript
            $$(PlutusTx.compile [|| wrap ||])
  where
@@ -220,8 +221,8 @@ scriptContextTextMintingValidator =
 scriptContextTextMintingScript :: LB.ByteString
 scriptContextTextMintingScript = serialise scriptContextTextMintingValidator
 
-scriptContextTestMintingScriptV1 :: PlutusScript PlutusScriptV1
-scriptContextTestMintingScriptV1 = PlutusScriptSerialised . SBS.toShort $ LB.toStrict scriptContextTextMintingScript
+scriptContextTestMintingScript :: PlutusScript PlutusScriptV1
+scriptContextTestMintingScript = PlutusScriptSerialised . SBS.toShort $ LB.toStrict scriptContextTextMintingScript
 
 -- Helpers
 

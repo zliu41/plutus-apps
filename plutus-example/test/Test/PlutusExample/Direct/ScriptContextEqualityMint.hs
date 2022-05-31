@@ -77,7 +77,7 @@ hprop_plutus_script_context_mint_equality = H.integration . H.runFinallies . H.w
   scriptDummyRedeemer <- H.note $ work </> "mint-script-context-dummy.redeemer"
   scriptContextRedeemer <- H.note $ work </> "mint-script-context.redeemer"
   requiredSignerSKey <- H.note $ tempAbsPath </> "addresses/user1.skey"
-  plutusContextEqualityMintScript <- H.note $ base </> "plutus-example/plutus/scripts/alonzo/minting-context-equivalance-test-V1.plutus"
+  plutusContextEqualityMintScript <- H.note $ base </> "plutus-example/plutus/scripts/minting-context-equivalance-test.plutus"
 
   policyId <- filter (/= '\n')
                 <$> H.execCli
