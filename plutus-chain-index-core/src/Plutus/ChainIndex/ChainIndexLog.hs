@@ -13,7 +13,7 @@ import Plutus.ChainIndex.ChainIndexError (ChainIndexError)
 import Plutus.ChainIndex.Tx (TxOut)
 import Plutus.ChainIndex.Types (Tip (..))
 import Plutus.Contract.CardanoAPI (FromCardanoError (..))
-import Prettyprinter (Pretty (..), colon, (<+>))
+import Prettyprinter (Pretty (..), colon, viaShow, (<+>))
 
 data ChainIndexLog =
     InsertionSuccess Tip InsertUtxoPosition
@@ -43,7 +43,7 @@ instance Pretty ChainIndexLog where
     TxNotFound txid -> "TxNotFound:" <+> pretty txid
     TxOutNotFound ref -> "TxOut not found with:" <+> pretty ref
     TipIsGenesis -> "TipIsGenesis"
-    NoDatumScriptAddr txout -> "The following transaction output from a script adress does not have a datum:" <+> undefined txout
+    NoDatumScriptAddr txout -> "The following transaction output from a script adress does not have a datum:" <+> viaShow txout
     BeamLogItem b -> "BeamLogItem:" <+> pretty b
 
 -- | Outcome of inserting a 'UtxoState' into the utxo index

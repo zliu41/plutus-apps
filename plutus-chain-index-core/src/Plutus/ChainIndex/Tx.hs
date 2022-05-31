@@ -47,7 +47,8 @@ import Data.Set qualified as Set
 import Data.Tuple (swap)
 import GHC.Generics (Generic)
 import Ledger (OnChainTx (..), SlotRange, SomeCardanoApiTx, Tx (..), txId)
-import Ledger.Tx.CardanoAPI (fromCardanoAddress, fromCardanoValue, toCardanoTxOutBabbage)
+import Ledger.Tx.CardanoAPI (fromCardanoAddress, fromCardanoValue, toCardanoTxOutBabbage,
+                             toCardanoTxOutDatumHashBabbage)
 import Plutus.Script.Utils.V1.Scripts (datumHash, mintingPolicyHash, redeemerHash, validatorHash)
 import Plutus.V1.Ledger.Api (Address, Datum, DatumHash, MintingPolicy (getMintingPolicy),
                              MintingPolicyHash (MintingPolicyHash), Redeemer, RedeemerHash, Script, TxId,
@@ -95,7 +96,7 @@ instance Pretty ChainIndexTx where
     pretty ChainIndexTx{_citxTxId, _citxInputs, _citxOutputs = ValidTx outputs, _citxValidRange, _citxData, _citxRedeemers, _citxScripts} =
         let lines' =
                 [ hang 2 (vsep ("inputs:" : fmap pretty (Set.toList _citxInputs)))
-                , hang 2 (vsep ("outputs:" : fmap undefined outputs))
+                , hang 2 (vsep ("outputs:" : fmap viaShow outputs))
                 , hang 2 (vsep ("scripts hashes:": fmap (pretty . fst) (Map.toList _citxScripts)))
                 , "validity range:" <+> viaShow _citxValidRange
                 , hang 2 (vsep ("data:": fmap (pretty . snd) (Map.toList _citxData) ))
@@ -150,7 +151,7 @@ fromOnChainTx networkId = \case
         ChainIndexTx
             { _citxTxId = txId tx
             , _citxInputs = txInputs
-            , _citxOutputs = ValidTx $ either (error "Failed to convert outputs") id $ traverse (toCardanoTxOutBabbage networkId undefined) txOutputs
+            , _citxOutputs = ValidTx $ either (error "Failed to convert outputs") id $ traverse (toCardanoTxOutBabbage networkId toCardanoTxOutDatumHashBabbage) txOutputs
             , _citxValidRange = txValidRange
             , _citxData = txData <> otherDataHashes
             , _citxRedeemers = redeemers

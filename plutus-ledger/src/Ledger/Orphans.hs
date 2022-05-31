@@ -217,5 +217,9 @@ instance OpenApi.ToSchema (C.TxOut C.CtxUTxO C.BabbageEra) where
     declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "TxOutInBabbageEra") mempty
 
 instance Serialise (C.TxOut C.CtxUTxO C.BabbageEra) where
-    encode = undefined
-    decode = undefined
+    encode = encode . JSON.encode
+    decode = do
+        s <- decode
+        case JSON.decode s of
+            Just r  -> pure r
+            Nothing -> error "Failed to decode TxOut"
