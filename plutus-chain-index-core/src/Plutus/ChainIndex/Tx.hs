@@ -21,14 +21,14 @@ module Plutus.ChainIndex.Tx(
     ChainIndexTx(..)
     , ChainIndexTxOutputs(..)
     , fromOnChainTx
-    , txOutAddress
-    , txOutValue
     , txOutRefs
     , txOutsWithRef
     , txOutRefMap
     , txOutRefMapForAddr
-    , TxOut
-    , TxOutInAnyEra(..)
+    , ChainIndexTxOut(..)
+    , fromTxOut
+    , ReferenceScript(..)
+    , fromCardanoTxOutRefScript
     -- ** Lenses
     , citxTxId
     , citxInputs
@@ -47,98 +47,86 @@ import Cardano.Api qualified as C
 import Cardano.Api.Shelley qualified as C
 import Codec.Serialise.Class (Serialise (decode, encode))
 import Control.Lens (makeLenses, makePrisms)
-import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), object, (.:), (.=))
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), object, (.!=), (.:), (.:?), (.=))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as Aeson
-import Data.Aeson.Types (Parser, prependFailure, typeMismatch)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.OpenApi qualified as OpenApi
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Tuple (swap)
-import Data.Type.Equality (TestEquality (..), (:~:) (Refl))
 import GHC.Generics (Generic)
 import Ledger (OnChainTx (..), SlotRange, SomeCardanoApiTx, Tx (..), txId)
-import Ledger.Tx.CardanoAPI (fromCardanoAddress, fromCardanoValue, toCardanoTxOutBabbage,
+import Ledger.Tx.CardanoAPI (fromCardanoAddress, fromCardanoTxOutDatum, fromCardanoValue, toCardanoTxOutBabbage,
                              toCardanoTxOutDatumHashBabbage)
 import Plutus.Script.Utils.V1.Scripts (datumHash, mintingPolicyHash, redeemerHash, validatorHash)
-import Plutus.V1.Ledger.Api (Address, Datum, DatumHash, MintingPolicy (getMintingPolicy),
-                             MintingPolicyHash (MintingPolicyHash), Redeemer, RedeemerHash, Script, TxId,
-                             TxOutRef (TxOutRef), Validator (getValidator), ValidatorHash (ValidatorHash), Value)
+import Plutus.V1.Ledger.Api (Datum, DatumHash, MintingPolicy (getMintingPolicy), MintingPolicyHash (MintingPolicyHash),
+                             Redeemer, RedeemerHash, Script, TxId, TxOutRef (TxOutRef), Validator (getValidator),
+                             ValidatorHash (ValidatorHash))
 import Plutus.V1.Ledger.Scripts (ScriptHash (ScriptHash))
 import Plutus.V1.Ledger.Tx (TxIn (txInType), TxInType (ConsumeScriptAddress))
+import Plutus.V2.Ledger.Api (Address, OutputDatum, Value)
 import Prettyprinter
 
-import Debug.Trace
+data ReferenceScript = ReferenceScriptNone | ReferenceScriptInAnyLang C.ScriptInAnyLang
+  deriving (Eq, Show)
 
-data TxOutInAnyEra where
-    TxOutInAnyEra :: C.IsCardanoEra era
-                  => C.CardanoEra era
-                  -> C.TxOut C.CtxTx era
-                  -> TxOutInAnyEra
+instance ToJSON ReferenceScript where
+  toJSON (ReferenceScriptInAnyLang s) = object ["referenceScript" .= s]
+  toJSON ReferenceScriptNone          = Aeson.Null
 
-deriving instance Show TxOutInAnyEra
+instance FromJSON ReferenceScript where
+  parseJSON = Aeson.withObject "ReferenceScript" $ \o ->
+    case Aeson.lookup "referenceScript" o of
+      Nothing        -> pure ReferenceScriptNone
+      Just refScript -> ReferenceScriptInAnyLang <$> parseJSON refScript
 
-instance Eq TxOutInAnyEra where
-  TxOutInAnyEra era1 out1 == TxOutInAnyEra era2 out2 =
-    case testEquality era1 era2 of
-      Just Refl -> out1 == out2
-      Nothing   -> False
+fromCardanoTxOutRefScript :: C.ReferenceScript era -> ReferenceScript
+fromCardanoTxOutRefScript = \case
+    C.ReferenceScriptNone      -> ReferenceScriptNone
+    C.ReferenceScript _ script -> ReferenceScriptInAnyLang script
 
-instance ToJSON TxOutInAnyEra where
-    toJSON (TxOutInAnyEra era txout) = object
-        [ "era" .= toJSON era
-        , "txOut" .= toJSON txout
+data ChainIndexTxOut = ChainIndexTxOut
+  { citoAddress   :: Address -- ^ We can't use AddressInAnyEra here because of missing FromJson instance for Byron era
+  , citoValue     :: Value
+  , citoDatum     :: OutputDatum
+  , citoRefScript :: ReferenceScript
+  } deriving (Eq, Show)
+
+instance ToJSON ChainIndexTxOut where
+    toJSON ChainIndexTxOut{..} = object
+        [ "address" .= toJSON citoAddress
+        , "value" .= toJSON citoValue
+        , "datum" .= toJSON citoDatum
+        , "refScript" .= toJSON citoRefScript
         ]
 
-instance FromJSON TxOutInAnyEra where
+instance FromJSON ChainIndexTxOut where
     parseJSON =
-        Aeson.withObject "TxOutInAnyEra" $ \obj ->
-            case Aeson.lookup "era" obj of
-                Just "Byron" -> do
-                    -- let addr = Aeson.lookup "address" obj
-                    --     val = Aeson.lookup "value" obj
-                    txOut <- C.TxOut
-                            <$> obj .: "address"
-                            <*> obj .: "value"
-                            <*> return C.TxOutDatumNone
-                            <*> return C.ReferenceScriptNone
-                    pure $ TxOutInAnyEra C.ByronEra txOut
-                Just "Shelley" -> do
-                    txOut <- obj .: "txOut"
-                    pure $ TxOutInAnyEra C.ShelleyEra txOut
-                Just "Allegra" -> do
-                    txOut <- obj .: "txOut"
-                    pure $ TxOutInAnyEra C.AllegraEra txOut
-                Just "Mary" -> do
-                    txOut <- obj .: "txOut"
-                    pure $ TxOutInAnyEra C.MaryEra txOut
-                Just "Alonzo" -> do
-                    txOut <- obj .: "txOut"
-                    pure $ TxOutInAnyEra C.AlonzoEra txOut
-                Just "Babbage" -> do
-                    txOut <- obj .: "txOut"
-                    pure $ TxOutInAnyEra C.BabbageEra txOut
+        Aeson.withObject "ChainIndexTxOut" $ \obj ->
+            ChainIndexTxOut
+                <$> obj .: "address"
+                <*> obj .: "value"
+                <*> obj .: "datum"
+                <*> obj .:? "refScript" .!= ReferenceScriptNone
 
-instance Serialise TxOutInAnyEra where
+instance Serialise ChainIndexTxOut where
     encode = encode . Aeson.encode
     decode = do
         s <- decode
-        case Aeson.decode (traceShowId s) of
+        case Aeson.decode s of
             Just r  -> pure r
-            Nothing -> error "Failed to decode TxOutInAnyEra"
+            Nothing -> error "Failed to decode ChainIndexTxOut"
 
-instance OpenApi.ToSchema TxOutInAnyEra where
-    declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "TxOutInAnyEra") mempty
-
-type TxOut = TxOutInAnyEra
+instance OpenApi.ToSchema ChainIndexTxOut where
+    declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "ChainIndexTxOut") mempty
 
 -- | List of outputs of a transaction. There are no outputs if the transaction
 -- is invalid.
 data ChainIndexTxOutputs =
     InvalidTx -- ^ The transaction is invalid so there is no outputs
-  | ValidTx [TxOut]
+  | ValidTx [ChainIndexTxOut]
   deriving (Show, Eq, Generic, ToJSON, FromJSON, Serialise, OpenApi.ToSchema)
 
 makePrisms ''ChainIndexTxOutputs
@@ -196,25 +184,27 @@ txOutRefs ChainIndexTx { _citxTxId, _citxOutputs = ValidTx outputs } =
 txOutRefs ChainIndexTx{_citxOutputs = InvalidTx} = []
 
 -- | Get tx output references and tx outputs from tx.
-txOutsWithRef :: ChainIndexTx -> [(TxOut, TxOutRef)]
+txOutsWithRef :: ChainIndexTx -> [(ChainIndexTxOut, TxOutRef)]
 txOutsWithRef tx@ChainIndexTx { _citxOutputs = ValidTx outputs } = zip outputs $ txOutRefs tx
 txOutsWithRef ChainIndexTx { _citxOutputs = InvalidTx }          = []
 
 -- | Get 'Map' of tx outputs references to tx.
-txOutRefMap :: ChainIndexTx -> Map TxOutRef (TxOut, ChainIndexTx)
+txOutRefMap :: ChainIndexTx -> Map TxOutRef (ChainIndexTxOut, ChainIndexTx)
 txOutRefMap tx =
     fmap (, tx) $ Map.fromList $ fmap swap $ txOutsWithRef tx
 
-txOutAddress :: TxOut -> Address
-txOutAddress (TxOutInAnyEra _ (C.TxOut address _ _ _)) = either (error "Cant' parse cardano address") id (fromCardanoAddress address)
-
-txOutValue :: TxOut -> Value
-txOutValue (TxOutInAnyEra _ (C.TxOut _ txOutVal _ _)) = fromCardanoValue $ txOutValueToValue txOutVal
-
 -- | Get 'Map' of tx outputs from tx for a specific address.
-txOutRefMapForAddr :: Address -> ChainIndexTx -> Map TxOutRef (TxOut, ChainIndexTx)
+txOutRefMapForAddr :: Address -> ChainIndexTx -> Map TxOutRef (ChainIndexTxOut, ChainIndexTx)
 txOutRefMapForAddr addr tx =
-    Map.filter ((==) addr . txOutAddress . fst) $ txOutRefMap tx
+    Map.filter ((==) addr . citoAddress . fst) $ txOutRefMap tx
+
+fromTxOut :: C.TxOut C.CtxTx era -> ChainIndexTxOut
+fromTxOut (C.TxOut addr val datum refScript) = either (error "Failed to convert TxOut CtxTx BabbageEra to ChainIndexTxOut") id $
+    ChainIndexTxOut
+        <$> fromCardanoAddress addr
+        <*> (pure $ fromCardanoValue $ txOutValueToValue val)
+        <*> (pure $ fromCardanoTxOutDatum datum)
+        <*> (pure $ fromCardanoTxOutRefScript refScript)
 
 -- | Convert a 'OnChainTx' to a 'ChainIndexTx'. An invalid 'OnChainTx' will not
 -- produce any 'ChainIndexTx' outputs and the collateral inputs of the
@@ -226,7 +216,7 @@ fromOnChainTx networkId = \case
         ChainIndexTx
             { _citxTxId = txId tx
             , _citxInputs = txInputs
-            , _citxOutputs = ValidTx $ either (error "Failed to convert outputs") id $ traverse (fmap (TxOutInAnyEra C.BabbageEra) . toCardanoTxOutBabbage networkId toCardanoTxOutDatumHashBabbage) txOutputs
+            , _citxOutputs = ValidTx $ map fromTxOut $ either (error "Failed to convert outputs") id $ traverse (toCardanoTxOutBabbage networkId toCardanoTxOutDatumHashBabbage) txOutputs
             , _citxValidRange = txValidRange
             , _citxData = txData <> otherDataHashes
             , _citxRedeemers = redeemers

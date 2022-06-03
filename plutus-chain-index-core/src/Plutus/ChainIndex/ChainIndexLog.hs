@@ -10,7 +10,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generic)
 import Ledger (TxId, TxOutRef)
 import Plutus.ChainIndex.ChainIndexError (ChainIndexError)
-import Plutus.ChainIndex.Tx (TxOut)
+import Plutus.ChainIndex.Tx (ChainIndexTxOut)
 import Plutus.ChainIndex.Types (Tip (..))
 import Plutus.Contract.CardanoAPI (FromCardanoError (..))
 import Prettyprinter (Pretty (..), colon, viaShow, (<+>))
@@ -23,7 +23,7 @@ data ChainIndexLog =
     | TxNotFound TxId
     | TxOutNotFound TxOutRef
     | TipIsGenesis
-    | NoDatumScriptAddr TxOut
+    | NoDatumScriptAddr ChainIndexTxOut
     | BeamLogItem BeamLog
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToObject)

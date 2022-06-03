@@ -5,10 +5,12 @@
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE ViewPatterns          #-}
+
 {-| Handlers for the 'ChainIndexQueryEffect' and the 'ChainIndexControlEffect' -}
 module Plutus.ChainIndex.Handlers
     ( handleQuery
@@ -43,9 +45,9 @@ import Database.Beam.Query (HasSqlEqualityCheck, asc_, desc_, exists_, orderBy_,
                             (>.))
 import Database.Beam.Schema.Tables (zipTables)
 import Database.Beam.Sqlite (Sqlite)
-import Ledger (ChainIndexTxOut (..), TxId)
+import Ledger (TxId)
+import Ledger qualified as L
 import Ledger.Ada qualified as Ada
-import Ledger.Tx.CardanoAPI (fromCardanoScriptData)
 import Ledger.Value (AssetClass (AssetClass), flattenValue)
 import Plutus.ChainIndex.Api (IsUtxoResponse (IsUtxoResponse), TxosResponse (TxosResponse),
                               UtxosResponse (UtxosResponse))
@@ -60,8 +62,7 @@ import Plutus.ChainIndex.Types (ChainSyncBlock (..), Depth (..), Diagnostics (..
                                 TxProcessOption (..), TxUtxoBalance (..), tipAsPoint)
 import Plutus.ChainIndex.UtxoState (InsertUtxoSuccess (..), RollbackResult (..), UtxoIndex)
 import Plutus.ChainIndex.UtxoState qualified as UtxoState
-import Plutus.V1.Ledger.Api (Address (..), Credential (..), Datum (..), DatumHash (..), TxOutRef (..))
-import PlutusTx.Prelude qualified as PlutusTx
+import Plutus.V2.Ledger.Api (Address (..), Credential (..), Datum (..), DatumHash (..), OutputDatum (..), TxOutRef (..))
 
 type ChainIndexState = UtxoIndex TxUtxoBalance
 
@@ -160,7 +161,7 @@ getTxOutFromRef ::
   , Member (LogMsg ChainIndexLog) effs
   )
   => TxOutRef
-  -> Eff effs (Maybe ChainIndexTxOut)
+  -> Eff effs (Maybe L.ChainIndexTxOut)
 getTxOutFromRef ref@TxOutRef{txOutRefId, txOutRefIdx} = do
   mTx <- getTxFromTxId txOutRefId
   -- Find the output in the tx matching the output ref
@@ -175,7 +176,7 @@ getUtxoutFromRef ::
   , Member (LogMsg ChainIndexLog) effs
   )
   => TxOutRef
-  -> Eff effs (Maybe ChainIndexTxOut)
+  -> Eff effs (Maybe L.ChainIndexTxOut)
 getUtxoutFromRef txOutRef = do
     mTxOut <- queryOne $ queryKeyValue utxoOutRefRows _utxoRowOutRef _utxoRowTxOut txOutRef
     case mTxOut of
@@ -187,22 +188,20 @@ makeChainIndexTxOut ::
   ( Member BeamEffect effs
   , Member (LogMsg ChainIndexLog) effs
   )
-  => TxOut
-  -> Eff effs (Maybe ChainIndexTxOut)
-makeChainIndexTxOut txout@(TxOutInAnyEra _ (C.TxOut _ _ datum _)) =
-  case addressCredential (txOutAddress txout) of
-    PubKeyCredential _ -> pure $ Just $ PublicKeyChainIndexTxOut (txOutAddress txout) (txOutValue txout)
+  => ChainIndexTxOut
+  -> Eff effs (Maybe L.ChainIndexTxOut)
+makeChainIndexTxOut txout@(ChainIndexTxOut{..}) =
+  case addressCredential citoAddress of
+    PubKeyCredential _ -> pure $ Just $ L.PublicKeyChainIndexTxOut citoAddress citoValue
     ScriptCredential vh ->
-      case datum of
-        C.TxOutDatumHash _ hsd -> do
-          let dh = DatumHash $ PlutusTx.toBuiltin (C.serialiseToRawBytes hsd)
+      case citoDatum of
+        OutputDatumHash dh -> do
           v <- maybe (Left vh) Right <$> getScriptFromHash vh
           d <- maybe (Left dh) Right <$> getDatumFromHash dh
-          pure $ Just $ ScriptChainIndexTxOut (txOutAddress txout) v d (txOutValue txout)
-        C.TxOutDatumInline _ sd -> do
+          pure $ Just $ L.ScriptChainIndexTxOut citoAddress v d citoValue
+        OutputDatum d -> do
           v <- maybe (Left vh) Right <$> getScriptFromHash vh
-          let d = Right $ Datum $ fromCardanoScriptData sd
-          pure $ Just $ ScriptChainIndexTxOut (txOutAddress txout) v d (txOutValue txout)
+          pure $ Just $ L.ScriptChainIndexTxOut citoAddress v (Right d) citoValue
         _ -> do
           -- If the txout comes from a script address, the Datum should not be Nothing
           logWarn $ NoDatumScriptAddr txout
@@ -518,11 +517,11 @@ fromTx tx = mempty
     , assetClassRows = fromPairs (concatMap assetClasses . txOutsWithRef)
     }
     where
-        credential :: (TxOut, TxOutRef) -> (Credential, TxOutRef)
-        credential (txOutAddress -> Address{addressCredential}, ref) =
+        credential :: (ChainIndexTxOut, TxOutRef) -> (Credential, TxOutRef)
+        credential (ChainIndexTxOut{citoAddress=Address{addressCredential}}, ref) =
           (addressCredential, ref)
-        assetClasses :: (TxOut, TxOutRef) -> [(AssetClass, TxOutRef)]
-        assetClasses (txOutValue -> val, ref) =
+        assetClasses :: (ChainIndexTxOut, TxOutRef) -> [(AssetClass, TxOutRef)]
+        assetClasses (ChainIndexTxOut{citoValue=val}, ref) =
           fmap (\(c, t, _) -> (AssetClass (c, t), ref))
                -- We don't store the 'AssetClass' when it is the Ada currency.
                $ filter (\(c, t, _) -> not $ Ada.adaSymbol == c && Ada.adaToken == t)

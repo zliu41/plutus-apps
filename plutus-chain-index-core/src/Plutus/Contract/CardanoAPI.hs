@@ -18,7 +18,7 @@ import Cardano.Api qualified as C
 import Data.Set qualified as Set
 import Ledger qualified as P
 import Ledger.Tx.CardanoAPI as Export
-import Plutus.ChainIndex.Tx (ChainIndexTx (..), TxOutInAnyEra (..))
+import Plutus.ChainIndex.Tx (ChainIndexTx (..), fromTxOut)
 import Plutus.ChainIndex.Tx qualified as ChainIndex.Tx
 
 fromCardanoBlock :: C.BlockInMode C.CardanoMode -> Either FromCardanoError [ChainIndexTx]
@@ -41,7 +41,6 @@ fromCardanoTx
   -> C.Tx era
   -> Either FromCardanoError ChainIndexTx
 fromCardanoTx eraInMode tx@(C.Tx txBody@(C.TxBody C.TxBodyContent{..}) _) = do
-    -- txOutputs <- traverse fromCardanoTxOutBabbage txOuts
     let scriptMap = plutusScriptsFromTxBody txBody
         isTxScriptValid = fromTxScriptValidity txScriptValidity
         (datums, redeemers) = scriptDataFromCardanoTxBody txBody
@@ -58,21 +57,10 @@ fromCardanoTx eraInMode tx@(C.Tx txBody@(C.TxBody C.TxBodyContent{..}) _) = do
             -- If the transaction is invalid, we use collateral inputs
             , _citxInputs = Set.fromList $ fmap ((`P.TxIn` Nothing) . fromCardanoTxIn) inputs
             -- No outputs if the one of scripts failed
-            , _citxOutputs = if isTxScriptValid then ChainIndex.Tx.ValidTx (TxOutInAnyEra (eraInModeToEra eraInMode) <$> txOuts)
+            , _citxOutputs = if isTxScriptValid then ChainIndex.Tx.ValidTx (fromTxOut <$> txOuts)
                                                 else ChainIndex.Tx.InvalidTx
             , _citxData = datums
             , _citxRedeemers = redeemers
             , _citxScripts = scriptMap
             , _citxCardanoTx = Just $ SomeTx tx eraInMode
             }
-
--- TODO: not exported by Cardano.Api
-eraInModeToEra :: C.EraInMode era mode -> C.CardanoEra era
-eraInModeToEra C.ByronEraInByronMode     = C.ByronEra
-eraInModeToEra C.ShelleyEraInShelleyMode = C.ShelleyEra
-eraInModeToEra C.ByronEraInCardanoMode   = C.ByronEra
-eraInModeToEra C.ShelleyEraInCardanoMode = C.ShelleyEra
-eraInModeToEra C.AllegraEraInCardanoMode = C.AllegraEra
-eraInModeToEra C.MaryEraInCardanoMode    = C.MaryEra
-eraInModeToEra C.AlonzoEraInCardanoMode  = C.AlonzoEra
-eraInModeToEra C.BabbageEraInCardanoMode = C.BabbageEra

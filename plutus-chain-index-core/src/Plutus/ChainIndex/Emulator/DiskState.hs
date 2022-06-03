@@ -36,8 +36,8 @@ import GHC.Generics (Generic)
 import Ledger.Ada qualified as Ada
 import Ledger.Credential (Credential)
 import Ledger.Tx (TxId)
-import Plutus.ChainIndex.Tx (ChainIndexTx, TxOut, citxData, citxRedeemers, citxScripts, citxTxId, txOutAddress,
-                             txOutValue, txOutsWithRef)
+import Plutus.ChainIndex.Tx (ChainIndexTx, ChainIndexTxOut (..), citxData, citxRedeemers, citxScripts, citxTxId,
+                             txOutsWithRef)
 import Plutus.ChainIndex.Types (Diagnostics (..))
 import Plutus.V1.Ledger.Api (Address (Address, addressCredential), Datum, DatumHash, Redeemer, RedeemerHash, Script,
                              TxOutRef)
@@ -71,7 +71,7 @@ instance Monoid CredentialMap where
 -- | Convert the outputs of the transaction into a 'CredentialMap'.
 txCredentialMap :: ChainIndexTx -> CredentialMap
 txCredentialMap  =
-    let credential (txOutAddress -> Address{addressCredential}) = addressCredential
+    let credential ChainIndexTxOut{citoAddress=Address{addressCredential}} = addressCredential
     in CredentialMap
        . Map.fromListWith (<>)
        . fmap (bimap credential Set.singleton)
@@ -112,11 +112,11 @@ txAssetClassMap =
           fmap (, Set.singleton txOutRef) $ assetClassesOfTxOut txOut)
       . txOutsWithRef
   where
-    assetClassesOfTxOut :: TxOut -> [AssetClass]
-    assetClassesOfTxOut (txOutValue -> val) =
+    assetClassesOfTxOut :: ChainIndexTxOut -> [AssetClass]
+    assetClassesOfTxOut ChainIndexTxOut{citoValue} =
       fmap (\(c, t, _) -> AssetClass (c, t))
            $ filter (\(c, t, _) -> not $ c == Ada.adaSymbol && t == Ada.adaToken)
-           $ flattenValue val
+           $ flattenValue citoValue
 
 -- | Data that we keep on disk. (This type is used for testing only - we need
 --   other structures for the disk-backed storage)
