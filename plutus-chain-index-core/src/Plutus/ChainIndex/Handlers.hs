@@ -189,7 +189,7 @@ makeChainIndexTxOut ::
   )
   => TxOut
   -> Eff effs (Maybe ChainIndexTxOut)
-makeChainIndexTxOut txout@(C.TxOut _ _ datum _) =
+makeChainIndexTxOut txout@(TxOutInAnyEra _ (C.TxOut _ _ datum _)) =
   case addressCredential (txOutAddress txout) of
     PubKeyCredential _ -> pure $ Just $ PublicKeyChainIndexTxOut (txOutAddress txout) (txOutValue txout)
     ScriptCredential vh ->
@@ -331,7 +331,7 @@ appendBlocks blocks = do
                     logDebug $ InsertionSuccess tip_ insertPosition
                     return (newIndex, transactions ++ txs, newUtxoState : utxoStates)
     oldIndex <- get @ChainIndexState
-    (newIndex, transactions, utxoStates) <- foldM processBlock (oldIndex, [], []) blocks
+    (newIndex, reverse -> transactions, reverse -> utxoStates) <- foldM processBlock (oldIndex, [], []) blocks
     depth <- ask @Depth
     reduceOldUtxoDbEffect <- case UtxoState.reduceBlockCount depth newIndex of
       UtxoState.BlockCountNotReduced -> do
@@ -546,6 +546,7 @@ diagnostics ::
 diagnostics = do
     numTransactions <- selectOne . select $ aggregate_ (const countAll_) (all_ (txRows db))
     txIds <- queryList . select $ _txRowTxId <$> limit_ 10 (all_ (txRows db))
+    unspentTxOuts <- queryList . select $ _utxoRowTxOut <$> limit_ 10 (all_ (utxoOutRefRows db))
     numScripts <- selectOne . select $ aggregate_ (const countAll_) (all_ (scriptRows db))
     numAddresses <- selectOne . select $ aggregate_ (const countAll_) $ nub_ $ _addressRowCred <$> all_ (addressRows db)
     numAssetClasses <- selectOne . select $ aggregate_ (const countAll_) $ nub_ $ _assetClassRowAssetClass <$> all_ (assetClassRows db)
@@ -559,4 +560,5 @@ diagnostics = do
         , numUnspentOutputs  = length outputs
         , numUnmatchedInputs = length inputs
         , someTransactions   = txIds
+        , unspentTxOuts = unspentTxOuts
         }

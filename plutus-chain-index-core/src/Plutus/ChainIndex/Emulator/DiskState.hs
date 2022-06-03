@@ -25,7 +25,6 @@ module Plutus.ChainIndex.Emulator.DiskState(
     , diagnostics
 ) where
 
-import Cardano.Api (BabbageEra, CtxUTxO, TxOut (..))
 import Control.Lens (At (..), Index, IxValue, Ixed (..), lens, makeLenses, view, (&), (.~), (^.))
 import Data.Bifunctor (Bifunctor (..))
 import Data.Map (Map)
@@ -37,9 +36,9 @@ import GHC.Generics (Generic)
 import Ledger.Ada qualified as Ada
 import Ledger.Credential (Credential)
 import Ledger.Tx (TxId)
-import Plutus.ChainIndex.Tx (ChainIndexTx, citxData, citxRedeemers, citxScripts, citxTxId, txOutAddress, txOutValue,
-                             txOutsWithRef)
-import Plutus.ChainIndex.Types (Diagnostics (Diagnostics, numAddresses, numAssetClasses, numScripts, numTransactions, numUnmatchedInputs, numUnspentOutputs, someTransactions))
+import Plutus.ChainIndex.Tx (ChainIndexTx, TxOut, citxData, citxRedeemers, citxScripts, citxTxId, txOutAddress,
+                             txOutValue, txOutsWithRef)
+import Plutus.ChainIndex.Types (Diagnostics (..))
 import Plutus.V1.Ledger.Api (Address (Address, addressCredential), Datum, DatumHash, Redeemer, RedeemerHash, Script,
                              TxOutRef)
 import Plutus.V1.Ledger.Scripts (ScriptHash)
@@ -113,7 +112,7 @@ txAssetClassMap =
           fmap (, Set.singleton txOutRef) $ assetClassesOfTxOut txOut)
       . txOutsWithRef
   where
-    assetClassesOfTxOut :: TxOut CtxUTxO BabbageEra -> [AssetClass]
+    assetClassesOfTxOut :: TxOut -> [AssetClass]
     assetClassesOfTxOut (txOutValue -> val) =
       fmap (\(c, t, _) -> AssetClass (c, t))
            $ filter (\(c, t, _) -> not $ c == Ada.adaSymbol && t == Ada.adaToken)
@@ -155,6 +154,7 @@ diagnostics DiskState{_DataMap, _ScriptMap, _TxMap, _RedeemerMap, _AddressMap, _
         , numAddresses = toInteger $ Map.size $ _unCredentialMap _AddressMap
         , numAssetClasses = toInteger $ Map.size $ _unAssetClassMap _AssetClassMap
         , someTransactions = take 10 $ fmap fst $ Map.toList _TxMap
+        , unspentTxOuts = []
         -- These 2 are filled in Handlers.hs
         , numUnmatchedInputs = 0
         , numUnspentOutputs = 0

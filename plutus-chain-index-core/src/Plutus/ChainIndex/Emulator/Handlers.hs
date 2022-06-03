@@ -43,7 +43,7 @@ import Plutus.ChainIndex.Effects (ChainIndexControlEffect (..), ChainIndexQueryE
 import Plutus.ChainIndex.Emulator.DiskState (DiskState, addressMap, assetClassMap, dataMap, redeemerMap, scriptMap,
                                              txMap)
 import Plutus.ChainIndex.Emulator.DiskState qualified as DiskState
-import Plutus.ChainIndex.Tx (ChainIndexTx, _ValidTx, citxOutputs, txOutAddress, txOutValue)
+import Plutus.ChainIndex.Tx (ChainIndexTx, TxOutInAnyEra (..), _ValidTx, citxOutputs, txOutAddress, txOutValue)
 import Plutus.ChainIndex.TxUtxoBalance qualified as TxUtxoBalance
 import Plutus.ChainIndex.Types (ChainSyncBlock (..), Diagnostics (..), Point (PointAtGenesis), Tip (..),
                                 TxProcessOption (..), TxUtxoBalance (..))
@@ -91,7 +91,7 @@ getTxOutFromRef ref@TxOutRef{txOutRefId, txOutRefIdx} = do
   -- Find the output in the tx matching the output ref
   case preview (txMap . ix txOutRefId . citxOutputs . _ValidTx . ix (fromIntegral txOutRefIdx)) ds of
     Nothing -> logWarn (TxOutNotFound ref) >> pure Nothing
-    Just txout@(C.TxOut _ _ datum _) -> do
+    Just txout@(TxOutInAnyEra _ (C.TxOut _ _ datum _)) -> do
       -- The output might come from a public key address or a script address.
       -- We need to handle them differently.
       case addressCredential $ txOutAddress txout of

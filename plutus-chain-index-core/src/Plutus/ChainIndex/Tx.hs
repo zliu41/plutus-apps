@@ -1,12 +1,19 @@
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE DerivingVia       #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE DerivingVia         #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
 
 {-| The chain index' version of a transaction
 -}
@@ -21,6 +28,7 @@ module Plutus.ChainIndex.Tx(
     , txOutRefMap
     , txOutRefMapForAddr
     , TxOut
+    , TxOutInAnyEra(..)
     -- ** Lenses
     , citxTxId
     , citxInputs
@@ -34,17 +42,22 @@ module Plutus.ChainIndex.Tx(
     , _ValidTx
     ) where
 
-import Cardano.Api (BabbageEra, CtxUTxO, NetworkId, txOutValueToValue)
+import Cardano.Api (NetworkId, txOutValueToValue)
 import Cardano.Api qualified as C
-import Codec.Serialise (Serialise)
+import Cardano.Api.Shelley qualified as C
+import Codec.Serialise.Class (Serialise (decode, encode))
 import Control.Lens (makeLenses, makePrisms)
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), object, (.:), (.=))
+import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as Aeson
+import Data.Aeson.Types (Parser, prependFailure, typeMismatch)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.OpenApi qualified as OpenApi
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Tuple (swap)
+import Data.Type.Equality (TestEquality (..), (:~:) (Refl))
 import GHC.Generics (Generic)
 import Ledger (OnChainTx (..), SlotRange, SomeCardanoApiTx, Tx (..), txId)
 import Ledger.Tx.CardanoAPI (fromCardanoAddress, fromCardanoValue, toCardanoTxOutBabbage,
@@ -57,7 +70,69 @@ import Plutus.V1.Ledger.Scripts (ScriptHash (ScriptHash))
 import Plutus.V1.Ledger.Tx (TxIn (txInType), TxInType (ConsumeScriptAddress))
 import Prettyprinter
 
-type TxOut = C.TxOut CtxUTxO BabbageEra
+import Debug.Trace
+
+data TxOutInAnyEra where
+    TxOutInAnyEra :: C.IsCardanoEra era
+                  => C.CardanoEra era
+                  -> C.TxOut C.CtxTx era
+                  -> TxOutInAnyEra
+
+deriving instance Show TxOutInAnyEra
+
+instance Eq TxOutInAnyEra where
+  TxOutInAnyEra era1 out1 == TxOutInAnyEra era2 out2 =
+    case testEquality era1 era2 of
+      Just Refl -> out1 == out2
+      Nothing   -> False
+
+instance ToJSON TxOutInAnyEra where
+    toJSON (TxOutInAnyEra era txout) = object
+        [ "era" .= toJSON era
+        , "txOut" .= toJSON txout
+        ]
+
+instance FromJSON TxOutInAnyEra where
+    parseJSON =
+        Aeson.withObject "TxOutInAnyEra" $ \obj ->
+            case Aeson.lookup "era" obj of
+                Just "Byron" -> do
+                    -- let addr = Aeson.lookup "address" obj
+                    --     val = Aeson.lookup "value" obj
+                    txOut <- C.TxOut
+                            <$> obj .: "address"
+                            <*> obj .: "value"
+                            <*> return C.TxOutDatumNone
+                            <*> return C.ReferenceScriptNone
+                    pure $ TxOutInAnyEra C.ByronEra txOut
+                Just "Shelley" -> do
+                    txOut <- obj .: "txOut"
+                    pure $ TxOutInAnyEra C.ShelleyEra txOut
+                Just "Allegra" -> do
+                    txOut <- obj .: "txOut"
+                    pure $ TxOutInAnyEra C.AllegraEra txOut
+                Just "Mary" -> do
+                    txOut <- obj .: "txOut"
+                    pure $ TxOutInAnyEra C.MaryEra txOut
+                Just "Alonzo" -> do
+                    txOut <- obj .: "txOut"
+                    pure $ TxOutInAnyEra C.AlonzoEra txOut
+                Just "Babbage" -> do
+                    txOut <- obj .: "txOut"
+                    pure $ TxOutInAnyEra C.BabbageEra txOut
+
+instance Serialise TxOutInAnyEra where
+    encode = encode . Aeson.encode
+    decode = do
+        s <- decode
+        case Aeson.decode (traceShowId s) of
+            Just r  -> pure r
+            Nothing -> error "Failed to decode TxOutInAnyEra"
+
+instance OpenApi.ToSchema TxOutInAnyEra where
+    declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "TxOutInAnyEra") mempty
+
+type TxOut = TxOutInAnyEra
 
 -- | List of outputs of a transaction. There are no outputs if the transaction
 -- is invalid.
@@ -131,10 +206,10 @@ txOutRefMap tx =
     fmap (, tx) $ Map.fromList $ fmap swap $ txOutsWithRef tx
 
 txOutAddress :: TxOut -> Address
-txOutAddress (C.TxOut address _ _ _) = either (error "Cant' parse cardano address") id (fromCardanoAddress address)
+txOutAddress (TxOutInAnyEra _ (C.TxOut address _ _ _)) = either (error "Cant' parse cardano address") id (fromCardanoAddress address)
 
 txOutValue :: TxOut -> Value
-txOutValue (C.TxOut _ txOutVal _ _) = fromCardanoValue $ txOutValueToValue txOutVal
+txOutValue (TxOutInAnyEra _ (C.TxOut _ txOutVal _ _)) = fromCardanoValue $ txOutValueToValue txOutVal
 
 -- | Get 'Map' of tx outputs from tx for a specific address.
 txOutRefMapForAddr :: Address -> ChainIndexTx -> Map TxOutRef (TxOut, ChainIndexTx)
@@ -151,7 +226,7 @@ fromOnChainTx networkId = \case
         ChainIndexTx
             { _citxTxId = txId tx
             , _citxInputs = txInputs
-            , _citxOutputs = ValidTx $ either (error "Failed to convert outputs") id $ traverse (toCardanoTxOutBabbage networkId toCardanoTxOutDatumHashBabbage) txOutputs
+            , _citxOutputs = ValidTx $ either (error "Failed to convert outputs") id $ traverse (fmap (TxOutInAnyEra C.BabbageEra) . toCardanoTxOutBabbage networkId toCardanoTxOutDatumHashBabbage) txOutputs
             , _citxValidRange = txValidRange
             , _citxData = txData <> otherDataHashes
             , _citxRedeemers = redeemers

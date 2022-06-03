@@ -210,13 +210,21 @@ deriving anyclass instance JSON.FromJSON ScriptError
 instance OpenApi.ToSchema (C.AddressInEra C.BabbageEra) where
     declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "AddressInBabbageEra") mempty
 
-instance OpenApi.ToSchema (C.TxOutDatum C.CtxUTxO C.BabbageEra) where
+instance OpenApi.ToSchema (C.TxOutDatum C.CtxTx C.BabbageEra) where
     declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "TxOutDatumInBabbageEra") mempty
 
-instance OpenApi.ToSchema (C.TxOut C.CtxUTxO C.BabbageEra) where
+instance OpenApi.ToSchema (C.TxOut C.CtxTx C.BabbageEra) where
     declareNamedSchema _ = pure $ OpenApi.NamedSchema (Just "TxOutInBabbageEra") mempty
 
 instance Serialise (C.TxOut C.CtxUTxO C.BabbageEra) where
+    encode = encode . JSON.encode
+    decode = do
+        s <- decode
+        case JSON.decode s of
+            Just r  -> pure r
+            Nothing -> error "Failed to decode TxOut"
+
+instance Serialise (C.TxOut C.CtxTx C.BabbageEra) where
     encode = encode . JSON.encode
     decode = do
         s <- decode
