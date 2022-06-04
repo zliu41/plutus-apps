@@ -168,8 +168,8 @@ source-repository-package
 -- Cardano mainnet (>=1.35)
 source-repository-package
   type: git
-  location: https://github.com/input-output-hk/cardano-node
-  tag: 65422ff373f2f88a563afa746a9a16d211ffdc7c
+  location: https://github.com/zliu41/cardano-node
+  tag: 7d8a7afdb2e2a27bd68eaf4cce5b11f77838be71
   subdir:
     cardano-api
     cardano-cli
