@@ -39,9 +39,11 @@ library
         base >=4.9 && <5,
         async,
         cardano-api,
+        containers,
         ouroboros-network,
         stm,
         streaming,
+        text
 
 executable plutus-streaming-example-1
     import: lang
@@ -90,4 +92,31 @@ executable plutus-streaming-example-3
         cardano-api,
         optparse-applicative,
         plutus-chain-index-core,
+        streaming,
+
+executable fold
+    import: lang
+    hs-source-dirs:   examples
+    main-is:          FoldBlocks.hs
+    other-modules:    Common, Orphans
+    build-depends:
+        plutus-streaming,
+        base >=4.9 && <5,
+        aeson,
+        base16-bytestring,
+        bytestring,
+        cardano-api,
+        cardano-binary,
+        cardano-ledger-alonzo,
+        cardano-node,
+        containers,
+        filepath,
+        optparse-applicative,
+        plutus-ledger,
+        plutus-script-utils,
+        plutus-chain-index-core,
+        text,
+        time,
+        transformers,
+        serialise,
         streaming,
