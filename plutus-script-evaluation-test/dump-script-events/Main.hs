@@ -11,7 +11,7 @@ cabal v2-run plutus-script-evaluation-test:dump-script-events -- \
   --socket-path $HOME/cardano/db/node.socket \
   --config $HOME/cardano/mainnet-config.json \
   --mainnet \
-  --blocks-per-file 2000 \
+  --blocks-per-file 8000 \
   --dir $HOME/cardano-dump
 
 -}

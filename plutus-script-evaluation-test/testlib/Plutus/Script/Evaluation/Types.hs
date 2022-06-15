@@ -1,42 +1,40 @@
 {-# LANGUAGE StrictData       #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Plutus.Script.Evaluation.Types
-  ( ScriptEvent (..),
-    Checkpoint (..),
-    StreamerState (..),
-    ScriptM,
-    Block,
-  )
-where
+module Plutus.Script.Evaluation.Types where
+
+-- ( ScriptEvent (..),
+--   Checkpoint (..),
+--   StreamerState (..),
+--   ScriptM,
+--   Block,
+-- )
 
 import Cardano.Api qualified as Cardano
-import Cardano.Binary (FromCBOR (fromCBOR), ToCBOR (toCBOR))
-import Cardano.Ledger.Alonzo.TxInfo qualified as Alonzo
 import Codec.Serialise qualified as CBOR
 import Codec.Serialise.Decoding qualified as CBOR
 import Codec.Serialise.Encoding qualified as CBOR
 import Control.Monad.Trans.State (StateT)
-import Data.List.NonEmpty (NonEmpty)
 import Data.Proxy (Proxy (Proxy))
 import Data.Word (Word64)
+import PlutusLedgerApi.Test.EvaluationEvent (ScriptEvaluationEvent)
 
 -- | A script evaluation that happens on-chain, which either succeeded or failed.
-data ScriptEvent
-  = ScriptEventSuccess [Alonzo.PlutusDebug]
-  | ScriptEventFailure (NonEmpty Alonzo.PlutusDebug)
+-- data ScriptEvent
+--   = ScriptEventSuccess [Alonzo.PlutusDebug]
+--   | ScriptEventFailure (NonEmpty Alonzo.PlutusDebug)
 
-instance CBOR.Serialise ScriptEvent where
-  encode = \case
-    ScriptEventSuccess ds -> CBOR.encodeListLen 2 <> CBOR.encodeWord 0 <> toCBOR ds
-    ScriptEventFailure ds -> CBOR.encodeListLen 2 <> CBOR.encodeWord 1 <> toCBOR ds
+-- instance CBOR.Serialise ScriptEvent where
+--   encode = \case
+--     ScriptEventSuccess ds -> CBOR.encodeListLen 2 <> CBOR.encodeWord 0 <> toCBOR ds
+--     ScriptEventFailure ds -> CBOR.encodeListLen 2 <> CBOR.encodeWord 1 <> toCBOR ds
 
-  decode = do
-    CBOR.decodeListLenOf 2
-    CBOR.decodeWord >>= \case
-      0 -> ScriptEventSuccess <$> fromCBOR
-      1 -> ScriptEventFailure <$> fromCBOR
-      _ -> fail "unknown tag"
+--   decode = do
+--     CBOR.decodeListLenOf 2
+--     CBOR.decodeWord >>= \case
+--       0 -> ScriptEventSuccess <$> fromCBOR
+--       1 -> ScriptEventFailure <$> fromCBOR
+--       _ -> fail "unknown tag"
 
 -- | A checkpoint from which the streamer can resume.
 data Checkpoint = Checkpoint
@@ -72,8 +70,10 @@ decodeChainPoint =
 
 -- | State we maintain when consuming the stream of ledger state and events
 data StreamerState = StreamerState
-  { ssCount  :: Word64,
-    ssEvents :: [ScriptEvent]
+  { ssCount        :: Word64,
+    ssV1CostParams :: Maybe [Integer],
+    ssV2CostParams :: Maybe [Integer],
+    ssEvents       :: [ScriptEvaluationEvent]
   }
 
 type ScriptM = StateT StreamerState IO
